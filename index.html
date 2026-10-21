@@ -231,18 +231,19 @@ canvas{display:block;width:100vw;height:100vh; position: fixed; top: 0; left: 0;
 <!-- ======================================= -->
 <script>
 // ============================================================
-// 1. СИСТEMA ЗВЁЗДОВОГО ФОНА (Для всех экранов)
+// 1. ЗВЁЗДНЫЙ ФОН
 // ============================================================
-function initStars(canvasId) {
-    var c = document.getElementById(canvasId);
-    if (!c) return null;
+(function() {
+    var c = document.getElementById('stars-canvas-background');
+    if (!c) return;
     var ctx = c.getContext('2d');
-    var stars = [];
     function resize() {
-        c.width = c.offsetWidth;
-        c.height = c.offsetHeight;
+        c.width = window.innerWidth;
+        c.height = window.innerHeight;
     }
     resize();
+    window.addEventListener('resize', resize);
+    var stars = [];
     for (var i = 0; i < 90; i++) {
         stars.push({
             x: Math.random(), y: Math.random(),
@@ -255,32 +256,27 @@ function initStars(canvasId) {
         ctx.clearRect(0, 0, c.width, c.height);
         for (var i = 0; i < stars.length; i++) {
             var s = stars[i];
-            // Генерация эффекта мерцания
             var a = 0.25 + 0.75 * Math.abs(Math.sin(s.phase + t * 0.001 * s.speed));
             ctx.beginPath();
             ctx.arc(s.x * c.width, s.y * c.height, s.r, 0, Math.PI * 2);
             ctx.fillStyle = 'rgba(255,255,255,' + a + ')';
             ctx.fill();
         }
-              }
         requestAnimationFrame(draw);
     }
     requestAnimationFrame(draw);
-    return true;
-}
-
-// Фон-звёзды для меню и подэкранов
-initStars('stars-canvas-background');
+})();
 
 // ============================================================
 // 2. ПЕРЕКЛЮЧЕНИЕ ЭКРАНОВ
 // ============================================================
+var SCREENS = ['intro-screen', 'menu-screen', 'records-screen', 'about-screen'];
+
 function showScreen(id) {
-    var screens = ['intro-screen', 'menu-screen', 'records-screen', 'about-screen'];
-    for (var i = 0; i < screens.length; i++) {
-        var el = document.getElementById(screens[i]);
+    for (var i = 0; i < SCREENS.length; i++) {
+        var el = document.getElementById(SCREENS[i]);
         if (!el) continue;
-        if (screens[i] === id) {
+        if (SCREENS[i] === id) {
             el.classList.remove('hidden');
         } else {
             el.classList.add('hidden');
@@ -289,52 +285,65 @@ function showScreen(id) {
 }
 
 // ============================================================
-// 3. КНОПКИ МЕНЮ
+// 3. ПЕРЕХОД ИЗ ИНТРО В МЕНЮ (с предохранителем)
 // ============================================================
-document.getElementById('btn-start').addEventListener('click', function() {
-    showScreen('none'); // скрыть все экраны — начинается игра
-    startGame();
-});
-document.getElementById('btn-records').addEventListener('click', function() {
-    // Обновляем рекорд перед показом
-    var best = parseInt(localStorage.getItem('neonvoid_best') || 0, 10);
-    document.getElementById('records-list').textContent = best;
-    showScreen('records-screen');
-});
-document.getElementById('btn-about').addEventListener('click', function() {
-    showScreen('about-screen');
-});
-document.getElementById('btn-exit').addEventListener('click', function() {
-    // В APK закрывает приложение; в браузере просто заглушка
-    if (navigator.app && navigator.app.exitApp) {
-        navigator.app.exitApp();
-    }
-});
-document.getElementById('btn-records-back').addEventListener('click', function() {
-    showScreen('menu-screen');
-});
-document.getElementById('btn-about-back').addEventListener('click', function() {
-    showScreen('menu-screen');
-});
-
-// Тап по интро — сразу в меню (не ждать 3.5 сек)
-document.getElementById('intro-screen').addEventListener('click', function() {
-    goMenu();
-});
-
-// Автопереход из интро в меню
 var introDone = false;
+
 function goMenu() {
     if (introDone) return;
     introDone = true;
     showScreen('menu-screen');
-    setTimeout(function() {
-        var intro = document.getElementById('intro-screen');
-        if (intro) intro.remove();
-    }, 1000);
+    var intro = document.getElementById('intro-screen');
+    if (intro) setTimeout(function() { intro.remove(); }, 1000);
 }
+
+// Тап/клик по интро — сразу в меню
+var introEl = document.getElementById('intro-screen');
+if (introEl) {
+    introEl.addEventListener('touchstart', function(e) { e.preventDefault(); goMenu(); });
+    introEl.addEventListener('click', goMenu);
+}
+
+// Автопереход через 3.5 секунды
 setTimeout(goMenu, 3500);
+
+// ПРЕДОХРАНИТЕЛЬ: даже если что-то сломалось выше —
+// через 5 секунд меню откроется принудительно
+setTimeout(function() {
+    if (!introDone) {
+        console.log('FAILSAFE: принудительный переход в меню');
+        goMenu();
+    }
+}, 5000);
+
+// ============================================================
+// 4. КНОПКИ МЕНЮ
+// ============================================================
+function on(id, fn) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('click', fn);
+    el.addEventListener('touchstart', function(e) { e.preventDefault(); fn(); });
+}
+
+on('btn-start', function() {
+    showScreen('none');
+    if (typeof startGame === 'function') startGame();
+});
+on('btn-records', function() {
+    var best = parseInt(localStorage.getItem('neonvoid_best') || '0', 10);
+    var r = document.getElementById('records-list');
+    if (r) r.textContent = best;
+    showScreen('records-screen');
+});
+on('btn-about', function() { showScreen('about-screen'); });
+on('btn-exit', function() {
+    if (navigator.app && navigator.app.exitApp) navigator.app.exitApp();
+});
+on('btn-records-back', function() { showScreen('menu-screen'); });
+on('btn-about-back', function() { showScreen('menu-screen'); });
 </script>
+
 
 <!-- ======================================= -->
 <!-- 🎮 КОД САМОЙ ИГРЫ (ваша логика) -->
